@@ -1,0 +1,90 @@
+# Auth no EKS: só é acessível pelo gateway (ClusterIP), como no compose.
+# Chama o account em http://account:8080 (nome do Service do account).
+# O CI troca a imagem ":latest" pela tag do commit antes do kubectl apply.
+#
+# O Secret com a chave do JWT NÃO fica no Git. Crie uma vez por cluster:
+#   kubectl create secret generic auth-secrets -n store \
+#     --from-literal=JWT_SECRET_KEY=<chave base64 de 32 bytes>
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-configmap
+data:
+  JWT_HTTP_ONLY: "true"
+  JWT_DURATION: "3600000"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  labels:
+    app: auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: auth
+          image: 637423273088.dkr.ecr.us-east-2.amazonaws.com/auth-service:latest
+          # o CI sempre aplica uma tag nova (sha-xxxxxxx), então não precisa de Always
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: auth-configmap
+            - secretRef:
+                name: auth-secrets
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ "ALL" ]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+spec:
+  type: ClusterIP
+  selector:
+    app: auth
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
