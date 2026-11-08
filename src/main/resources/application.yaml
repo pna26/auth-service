@@ -4,6 +4,6 @@ spring:
 
 store:
   jwt:
-    secretKey: ${JWT_SECRET_KEY:EBwrdOOcAIDRLON9hbJV0+O3PTdfTjgMCQIxwLH7ws8=}
+    secretKey: ${JWT_SECRET_KEY} # obrigatória: sem ela o auth não sobe
     httpOnly: ${JWT_HTTP_ONLY:true}
     duration: ${JWT_DURATION:3600000} # 1 hora em milissegundos
