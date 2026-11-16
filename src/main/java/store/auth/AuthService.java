@@ -64,8 +64,10 @@ public class AuthService {
     }
 
     public Map<String, String> solve(final String jwt) {
+        // o gateway usa o idAccount (header id-account) e o role (RBAC)
         return Map.of(
-            "idAccount", jwtService.getId(jwt)
+            "idAccount", jwtService.getId(jwt),
+            "role", jwtService.getRole(jwt)
         );
     }
 
